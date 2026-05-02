@@ -1,0 +1,17 @@
+[project]
+name = "synapseindex"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "bharathbabu", email = "bharath.r.babu@gmail.com" }
+]
+requires-python = ">=3.13"
+dependencies = [
+    "boto3>=1.42.97",
+    "litellm>=1.83.14",
+]
+
+[build-system]
+requires = ["uv_build>=0.9.26,<0.10.0"]
+build-backend = "uv_build"
