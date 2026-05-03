@@ -1,9 +1,8 @@
-from synapseindex.parsers import Parser
-
-import re
-from node import Node
 import logging
+import re
 
+from ..node import Node
+from . import Parser
 
 HEADER_REGEX = re.compile(r'^(#{1,6})\s+(.+)$')
 LOGGER = logging.getLogger(__name__)

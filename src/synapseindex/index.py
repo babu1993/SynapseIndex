@@ -1,6 +1,6 @@
 import os
-from parsers.md_parser import MDParser
-from parsers import Parser
+from .parsers.md_parser import MDParser
+from .parsers import Parser
 
 parsers_map = {
     "md": MDParser

@@ -1,8 +1,8 @@
+import logging
 import os
 
-import logging
+from .node import Node
 
-from node import Node
 
 def walk_tree(root:str):
     for (dirpath, _, filenames) in os.walk(root):
