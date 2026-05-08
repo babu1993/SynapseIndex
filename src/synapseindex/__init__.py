@@ -10,7 +10,7 @@ from .node.thinning import DefaultThinning
 from .util import walk_tree
 
 LOGGER = logging.getLogger(__name__)
-MAX_FILE_COUNT_FOR_INDEXING = os.getenv("MAX_FILE_COUNT_FOR_INDEXING", 3)
+MAX_FILE_COUNT_FOR_INDEXING = int(os.getenv("MAX_FILE_COUNT_FOR_INDEXING", 3))
 
 def _make_tree_worker(path: str):
     """Worker function for multiprocessing - runs in separate process"""
@@ -23,11 +23,11 @@ async def reset(destination: str, root_name: str, storage: Storage):
     destination_exists = await storage.exists(destination)
     if destination_exists:
         await storage.reset(destination)
-    await storage.mkdir(destination)
+    destination = await storage.mkdir(destination)
     destination_exists = await storage.exists(destination)
     if destination_exists:
         root_folder = await storage.join(destination, root_name)
-        await storage.mkdir(root_folder)
+        root_folder = await storage.mkdir(root_folder)
         return root_folder
     else:
         raise Exception(f"Destination {destination} does not exist")
@@ -37,8 +37,11 @@ async def index(source: str, destination: str, thinning_func: Any=DEFAULT_THINNI
         storage = LocalStorage()
     if start_fresh and start_count == 0:
         root_folder = await reset(destination, root_name, storage)
+        root_node = Node(name="root", description="", node_id="root_node")
     else:
         root_folder = await storage.join(destination, root_name)
+        root_node_path = await storage.join(root_folder, f"0_root_node.json")
+        root_node = await Node.from_json(path=root_node_path, storage=storage)
     node_index_list = []
     total_paths = 0
     if os.path.exists(source):
@@ -58,7 +61,7 @@ async def index(source: str, destination: str, thinning_func: Any=DEFAULT_THINNI
             tree = await get_parsers(source).make_tree(source)
             if tree is not None:
                 node_index_list.append(tree)
-    root_node = Node(name="root", children=node_index_list, description="")
+    root_node.children.extend(node_index_list)
     if node_index_list:
         if thinning_func is not None:
             LOGGER.info(f"Before thinning: {root_node}")
