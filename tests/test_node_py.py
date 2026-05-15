@@ -12,6 +12,7 @@ class FakeStorage:
         self.store = AsyncMock()
         self.mkdir = AsyncMock()
         self.read = AsyncMock()
+        self.join = AsyncMock(side_effect=lambda root_path, *paths: os.path.join(root_path, *paths))
 
 
 class TestNodeModule(unittest.IsolatedAsyncioTestCase):
@@ -36,13 +37,11 @@ class TestNodeModule(unittest.IsolatedAsyncioTestCase):
         root.children.append(child)
         storage = FakeStorage()
 
-        with tempfile.TemporaryDirectory() as tmpdir, patch.object(node_mod, "LOCAL_STORAGE", storage), patch.object(
-            node_mod.os, "mkdir"
-        ) as mkdir_mock:
+        with tempfile.TemporaryDirectory() as tmpdir, patch.object(node_mod, "LOCAL_STORAGE", storage):
             await node_mod.export_tree(root, tmpdir, storage=storage)
 
         self.assertGreaterEqual(storage.store.await_count, 2)
-        mkdir_mock.assert_called_once()
+        storage.mkdir.assert_called()
 
 
 class TestThinningModule(unittest.IsolatedAsyncioTestCase):
@@ -80,4 +79,3 @@ class TestThinningModule(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(result.children, combined)
         check_mock.assert_awaited_once()
-
