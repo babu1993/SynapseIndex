@@ -4,7 +4,7 @@ import logging
 import os
 from typing import List, Callable, Awaitable, Tuple, Any
 
-from litellm import acompletion
+from litellm import acompletion, completion
 
 MODEL = None
 LOGGER = logging.getLogger(__name__)
@@ -29,6 +29,13 @@ class Model:
 if MODEL is None:
     MODEL = Model.build_from_env()
 
+def llm_initialize():
+    params = MODEL.get_model_params()
+    try:
+        completion(messages=[{"role": "system", "content": "Initialize model with empty prompt"}], temperature=0, **params)
+        LOGGER.info("LLM initialization successful")
+    except Exception as e:
+        LOGGER.error(f"LLM initialization failed: {e}")
 
 async def llm_completion(prompt, **kwargs):
     max_retries = 10

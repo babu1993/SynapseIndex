@@ -5,7 +5,7 @@ from concurrent.futures import ProcessPoolExecutor
 from typing import Any
 
 from .index import get_parsers
-from .node import Node, export_tree, LocalStorage, Storage
+from .node import Node, export_tree, LocalStorage, Storage, llm_util
 from .node.thinning import DefaultThinning
 from .util import walk_tree
 
@@ -18,6 +18,9 @@ def _make_tree_worker(path: str):
     return asyncio.run(get_parsers(path).make_tree(path))
 
 DEFAULT_THINNING = DefaultThinning()
+
+def initialize():
+    llm_util.llm_initialize()
 
 async def reset(destination: str, root_name: str, storage: Storage):
     destination_exists = await storage.exists(destination)
@@ -71,3 +74,16 @@ async def index(source: str, destination: str, thinning_func: Any=DEFAULT_THINNI
     if (total_paths - start_count) > MAX_FILE_COUNT_FOR_INDEXING:
         await index(source, destination, thinning_func, storage, root_name,
                     start_count=start_count+MAX_FILE_COUNT_FOR_INDEXING)
+
+async def get_doc(path: Any, storage: Storage=None):
+    if storage is None:
+        storage = LocalStorage()
+    async def get_json_path(inner_path):
+        if inner_path.endswith(".json"):
+            return inner_path
+        async for p in storage.walk(inner_path):
+            return await get_json_path(p)
+        return None
+    path = await get_json_path(path)
+    context_node = await Node.from_json(path, storage)
+    return context_node

@@ -81,3 +81,61 @@ class TestSynapseIndexInit(unittest.IsolatedAsyncioTestCase):
                 with self.assertRaises(Exception):
                     await synapse_pkg.index(source=source, destination=destination, thinning_func=None)
 
+    async def test_initialize_calls_llm_initialize(self):
+        with patch.object(synapse_pkg.llm_util, "llm_initialize") as llm_init_mock:
+            synapse_pkg.initialize()
+        llm_init_mock.assert_called_once()
+
+    async def test_reset_destination_exists_and_not_exists(self):
+        storage = AsyncMock()
+        storage.exists.side_effect = [True, True, False]
+        storage.reset = AsyncMock()
+        storage.mkdir = AsyncMock(side_effect=["/tmp/dir", "/tmp/dir/root"])
+        storage.join = AsyncMock(return_value="/tmp/dir/root")
+        # destination exists branch
+        result = await synapse_pkg.reset("/tmp/dir", "root", storage)
+        self.assertEqual(result, "/tmp/dir/root")
+        # destination does not exist branch
+        storage.exists.side_effect = [False]
+        with self.assertRaises(Exception):
+            await synapse_pkg.reset("/tmp/dir", "root", storage)
+
+    async def test_get_doc_returns_node(self):
+        storage = AsyncMock()
+        storage.read = AsyncMock(return_value={"name": "n", "description": "", "start_line": 0, "end_line": 0, "children": [], "node_id": "nid", "parent_id": None, "level": 0, "text": ""})
+        storage.exists = AsyncMock(return_value=True)
+        storage.join = AsyncMock(return_value="/tmp/n.json")
+        # direct .json path
+        node = await synapse_pkg.get_doc("/tmp/n.json", storage)
+        self.assertEqual(node.name, "n")
+        # indirect path (walk yields a .json)
+        async def async_gen(items):
+            for item in items:
+                yield item
+        storage.walk = lambda _: async_gen(["/tmp/n.json"])
+        node = await synapse_pkg.get_doc("/tmp/dir", storage)
+        self.assertEqual(node.name, "n")
+
+    async def test_index_start_fresh_false_and_recursive(self):
+        storage = AsyncMock()
+        storage.exists = AsyncMock(return_value=True)
+        storage.join = AsyncMock(side_effect=lambda *a, **k: "/".join(a[1:]))
+        storage.read = AsyncMock(return_value={"name": "root", "description": "", "start_line": 0, "end_line": 0, "children": [], "node_id": "root_node", "parent_id": None, "level": 0, "text": ""})
+        storage.mkdir = AsyncMock(return_value="/tmp/dir")
+        storage.reset = AsyncMock()
+
+        fake_loop = Mock()
+        # Return a unique object per call; no risk of running out during recursion.
+        fake_loop.run_in_executor = Mock(side_effect=lambda *args, **kwargs: object())
+
+        with patch.object(synapse_pkg.os.path, "exists", return_value=True), \
+             patch.object(synapse_pkg.os.path, "isdir", return_value=True), \
+             patch.object(synapse_pkg, "walk_tree", return_value=["a.md", "b.md", "c.md", "d.md"]), \
+             patch.object(synapse_pkg, "ProcessPoolExecutor"), \
+             patch.object(synapse_pkg.asyncio, "get_event_loop", return_value=fake_loop), \
+             patch.object(synapse_pkg.asyncio, "gather", AsyncMock(return_value=[None, None, None])), \
+             patch.object(synapse_pkg, "export_tree", AsyncMock()):
+            # start_fresh False, triggers loading from json
+            await synapse_pkg.index("src", "dest", storage=storage, start_fresh=False)
+            # recursive call branch
+            await synapse_pkg.index("src", "dest", storage=storage, start_count=0)

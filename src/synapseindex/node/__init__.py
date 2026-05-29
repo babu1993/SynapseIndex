@@ -23,6 +23,8 @@ class Storage(Protocol):
         pass
     async def join(self, root_path: Any, *path: Any) -> Any:
         pass
+    async def walk(self, path: Any) -> Any:
+        pass
 
 class Node:
 
@@ -94,6 +96,12 @@ class LocalStorage(Storage):
     async def join(self, root_path, *paths) -> Any:
         return os.path.join(root_path, *paths)
 
+    async def walk(self, path) -> Any:
+        for root, dirs, files in os.walk(path):
+            if files:
+                for file in files:
+                    yield os.path.join(root, file)
+
 
 LOCAL_STORAGE = LocalStorage()
 
@@ -106,4 +114,4 @@ async def export_tree(node, root_path, storage:Storage=None):
     for child in node.children:
         child_path = await storage.join(root_path, f"{child.level}_{child.node_id}")
         await storage.mkdir(child_path)
-        await export_tree(child, child_path)
+        await export_tree(child, child_path, storage)  # Pass storage recursively
